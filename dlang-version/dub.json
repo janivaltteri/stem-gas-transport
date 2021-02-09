@@ -1,0 +1,21 @@
+{
+    "authors": [ "jva" ],
+    "copyright": "Copyright © 2020, jva",
+    "description": "gas tree transport simulation",
+    "license": "gplv3",
+    "name": "stem-gas-transport",
+    "dependencies": {
+        "commandr": "~>0.2.0"
+    },
+    "buildTypes": {
+	"debug": {
+		"buildOptions": ["debugMode","debugInfo"]
+	},
+	"opt0": {
+		"buildOptions": ["releaseMode","optimize","noBoundsCheck"]
+	},
+	"opt1": {
+		"buildOptions": ["releaseMode","optimize","inline","noBoundsCheck"]
+	}
+    }
+}
