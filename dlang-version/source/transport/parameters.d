@@ -184,7 +184,7 @@ struct Parameters
     writeln("parameters:");
     writefln("nr %s ny %s nrs %s", nr, ny, nrs);
     writefln("dy %s dr %s", dy, dr);
-    writefln("diff_r: %s, diff_a: %s, diff_b: %s, gamma: %s ",
+    writefln("diff_r %s diff_a %s diff_b %s gamma %s",
 	     diff_r, diff_a, diff_b, gamma);
   }
 

@@ -88,10 +88,18 @@ class Tree
 	volume[i,j]    = p.dy * crossect[i,j];
 	volumeair[i,j] = p.fractair * volume[i,j];
 	volumewat[i,j] = p.fractwat * volume[i,j];
-	ker1[i,j] = log( (dr_values[i] * to!double(j + 1)) /
-			 (dr_values[i] * to!double(j)) );
-	ker2[i,j] = log( (dr_values[i] * to!double(j + 2)) /
-			 (dr_values[i] * to!double(j + 1)) );
+	// old way
+	/*
+	ker1[i,j] = log((dr_values[i] * to!double(j + 1)) /
+			(dr_values[i] * to!double(j)));
+	ker2[i,j] = log((dr_values[i] * to!double(j + 2)) /
+			(dr_values[i] * to!double(j + 1)));
+	*/
+	// new way
+	ker1[i,j] = ((dr_values[i] * to!double(j + 1)) -
+		     (dr_values[i] * to!double(j)));
+	ker2[i,j] = ((dr_values[i] * to!double(j + 2)) -
+		     (dr_values[i] * to!double(j + 1)));
       }
     }
 
@@ -128,19 +136,26 @@ class Tree
 	volume[i,j]    = p.dy * crossect[i,j];
 	volumeair[i,j] = p.fractair * volume[i,j];
 	volumewat[i,j] = p.fractwat * volume[i,j];
-	ker1[i,j] = log( (p.dr * to!double(j + 1)) /
-			 (p.dr * to!double(j)) );
-	ker2[i,j] = log( (p.dr * to!double(j + 2)) /
-			 (p.dr * to!double(j + 1)) );
+	// old way
+	/*
+	ker1[i,j] = log((p.dr * to!double(j + 1)) /
+			(p.dr * to!double(j)));
+	ker2[i,j] = log((p.dr * to!double(j + 2)) /
+			(p.dr * to!double(j + 1)));
+	*/
+	// new way
+	ker1[i,j] = ((p.dr * to!double(j + 1)) -
+		     (p.dr * to!double(j)));
+	ker2[i,j] = ((p.dr * to!double(j + 2)) -
+		     (p.dr * to!double(j + 1)));
       }
     }
 
     zero_state(p);
 
     debug(1){
-      writeln("dr: ",p.dr);
-      write("crossect: ");
-      for(auto i = 0; i < p.ny; i++){ write(" ",crossect[0,i]); }
+      write("initialise_dr_fixed: crossects ");
+      for(auto j = 0; j < p.nr; j++){ write(" ",crossect[0,j]); }
       writeln("");
     }
 

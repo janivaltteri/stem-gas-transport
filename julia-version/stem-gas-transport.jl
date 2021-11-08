@@ -3,6 +3,8 @@
 
 using JSON;
 
+## Flux struct - used for bookkeeping for output purposes
+
 mutable struct Flux
     fluxin::Array{Float64,1}
     fluxside::Array{Float64,1}
@@ -16,9 +18,10 @@ function make_flux(in_ny::Integer,in_nr::Integer)::Flux
     ftd = zeros(in_nr)
     fta = zeros(in_nr)
     f = Flux(fin,fs,ftd,fta)
+    return f
 end
 
-function flux_totals(f::Flux)
+function flux_totals(f::Flux)::Array{Float64,1}
     res = zeros(4)
     res[1] = sum(f.fluxin)
     res[2] = sum(f.fluxside)
@@ -32,11 +35,13 @@ Base.show(io::IO, f::Flux) = print(io, "in    ",(flux_totals(f))[1],
                                    " \ntop_d ",(flux_totals(f))[3],
                                    " \ntop_a ",(flux_totals(f))[4])
 
+## state struct - holds the state variables of the tree
+
 mutable struct State
-    cair::Array{Float64,2}
-    cwat::Array{Float64,2}
-    nair::Array{Float64,2}
-    nwat::Array{Float64,2}
+    cair::Array{Float64,2} ## conc. in gaseous phase
+    cwat::Array{Float64,2} ## conc. in aqueous phase
+    nair::Array{Float64,2} ## n [mol] in gaseous phase
+    nwat::Array{Float64,2} ## n [mol] in aqueous phase
     time::Float64
     ny::Integer
     nr::Integer
@@ -65,11 +70,13 @@ Base.show(io::IO, s::State) = print(io, "time ",s.time,
                                     " ny ", s.ny, " nr ", s.nr,
                                     " total ", total_storage(s))
 
+## derivative state - holds the state change
+
 mutable struct Derivative
-    qair::Array{Float64,2}
-    qadv::Array{Float64,2}
-    axdiff::Array{Float64,2}
-    towater::Array{Float64,2}
+    qair::Array{Float64,2}    ## radial diffusion
+    qadv::Array{Float64,2}    ## advection
+    axdiff::Array{Float64,2}  ## axial diffusion
+    towater::Array{Float64,2} ## phase equilibration
 end
 
 function make_derivative(in_ny::Integer,in_nr::Integer)::Derivative
@@ -264,6 +271,16 @@ function update_cumulants(c::Cumulant,a::Array{Float64,1},dt::Float64)
     return nothing;
 end
 
+function set_c_from_n(t::Tree,s::State)
+    for i = 1:t.ny
+        for j = 1:t.nr
+            s.cair[i,j] = s.nair[i,j]/t.volumeair[i,j];
+            s.cwat[i,j] = s.nwat[i,j]/t.volumewat[i,j];
+        end
+    end
+    return nothing;
+end
+
 ## todo : check that tree is initialised
 function euler_step(t::Tree,s::State,d::Derivative,f::Flux,
                     c::Cumulant,p::Dict{String,Any})
@@ -290,16 +307,3 @@ function euler_step(t::Tree,s::State,d::Derivative,f::Flux,
     return nothing;
 end
 
-read_par = read("example.json", String)
-par = JSON.parse(read_par)
-par["dy"] = par["height"]/par["ny"]
-
-t0 = make_tree(par["ny"],par["nr"])
-s0 = make_state(par["ny"],par["nr"])
-d0 = make_derivative(par["ny"],par["nr"])
-f0 = make_flux(par["ny"],par["nr"])
-c0 = Cumulant(0.0,0.0,0.0,0.0)
-
-initialise_tree_fix_dr(t0,par)
-
-euler_step(t0,s0,d0,f0,c0,par)
