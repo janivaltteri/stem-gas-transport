@@ -140,6 +140,33 @@ function initialise_tree_fix_dr(t::Tree,p::Dict{String,Any})
         t.volumeair[i,1] = p["fractair"] * t.volume[i,1]
         t.volumewat[i,1] = p["fractwat"] * t.volume[i,1]
         t.ker1[i,1] = Inf
+        t.ker2[i,1] = p["dr"] ## todo: tarkista
+        ##t.ker2[i,1] = log(2.0 * p["dr"] / p["dr"])
+        for j = 2:t.nr
+            t.volume[i,j] = p["dy"] * t.crossect[i,j]
+            t.volumeair[i,j] = p["fractair"] * t.volume[i,j]
+            t.volumewat[i,j] = p["fractwat"] * t.volume[i,j]
+            t.ker1[i,j] = (p["dr"] * j) - (p["dr"] * (j-1))
+            t.ker2[i,j] = (p["dr"] * (j+1)) - (p["dr"] * j)
+            ##t.ker1[i,j] = log((p["dr"] * j) / (p["dr"] * (j-1)))
+            ##t.ker2[i,j] = log((p["dr"] * (j+1)) / (p["dr"] * j))
+        end
+    end
+    t.initialised = true;
+    return nothing;
+end
+
+function initialise_tree_fix_dr_vanha(t::Tree,p::Dict{String,Any})
+    for i = 1:t.ny
+        for j = 1:t.nr
+            t.crossect[i,j] = crossect_area(j,p["dr"])
+        end
+    end
+    for i = 1:t.ny
+        t.volume[i,1] = p["dy"] * t.crossect[i,1]
+        t.volumeair[i,1] = p["fractair"] * t.volume[i,1]
+        t.volumewat[i,1] = p["fractwat"] * t.volume[i,1]
+        t.ker1[i,1] = Inf
         t.ker2[i,1] = log(2.0 * p["dr"] / p["dr"])
         for j = 2:t.nr
             t.volume[i,j] = p["dy"] * t.crossect[i,j]
@@ -155,6 +182,36 @@ end
 
 function radial_diffusion(t::Tree,s::State,d::Derivative,f::Flux,
                           p::Dict{String,Any})
+    ## set derivative elements
+    for i = 1:t.ny
+        for j = 1:t.nr
+	    if j == 1
+	        ## innermost radial element
+	        d.qair[i,j] = (-2.0 * pi * p["dr"] * j * p["dy"] *
+                               p["diff_r"] * (s.cair[i,j] - s.cair[i,j+1]) / t.ker2[i,j])
+	    elseif j == t.nr
+	        ## outermost radial element
+	        d.qair[i,j] = ((2.0 * pi * p["dr"] * (j-1) * p["dy"] *
+                                p["diff_r"] * (s.cair[i,j-1] - s.cair[i,j]) / t.ker1[i,j]) -
+			        (2.0 * pi * p["dr"] * j * p["dy"] *
+                                 p["diff_b"] * (s.cair[i,j] - p["camb"]) / t.ker2[i,j]))
+	    else
+	        d.qair[i,j] = ((2.0 * pi * p["dr"] * (j-1) * p["dy"] *
+                                p["diff_r"] * (s.cair[i,j-1] - s.cair[i,j]) / t.ker1[i,j]) -
+			        (2.0 * pi * p["dr"] * j * p["dy"] *
+                                 p["diff_r"] * (s.cair[i,j] - s.cair[i,j+1]) / t.ker2[i,j]))
+	    end
+        end
+    end
+    ## set flux elements
+    for i = 1:t.ny
+	f.fluxside[i] = (2.0 * pi * p["radius"] * p["dy"] *
+                         p["diff_b"] * (s.cair[i,t.nr] - p["camb"]) / t.ker2[i,t.nr]);
+    end
+    return nothing;
+end
+
+function radial_diffusion_vanha(t::Tree,s::State,d::Derivative,f::Flux,p::Dict{String,Any})
     ## set derivative elements
     for i = 1:t.ny
         for j = 1:t.nr
@@ -183,6 +240,8 @@ function radial_diffusion(t::Tree,s::State,d::Derivative,f::Flux,
     end
     return nothing;
 end
+
+
 
 function axial_advection(t::Tree,s::State,d::Derivative,f::Flux,
                          p::Dict{String,Any})
@@ -289,7 +348,31 @@ function euler_step(t::Tree,s::State,d::Derivative,f::Flux,
 	axial_advection(t,s,d,f,p);
 	axial_diffusion(t,s,d,f,p);
 	phase_equilibration(t,s,d,p);
-	##update_cumulants(p);
+	for i = 1:t.ny
+	    for j = 1:t.nr
+	        s.nair[i,j] += p["dt"]*(d.qair[i,j] +
+					d.axdiff[i,j] -
+					d.towater[i,j]);
+	        s.nwat[i,j] += p["dt"]*(d.qadv[i,j] +
+					d.towater[i,j]);
+	        s.cair[i,j] = s.nair[i,j]/t.volumeair[i,j];
+	        s.cwat[i,j] = s.nwat[i,j]/t.volumewat[i,j];
+	    end
+	end
+        update_cumulants(c,flux_totals(f),p["dt"]);
+        s.time += p["dt"]
+    end
+    return nothing;
+end
+
+## todo : check that tree is initialised
+function euler_step_vanha(t::Tree,s::State,d::Derivative,f::Flux,
+                    c::Cumulant,p::Dict{String,Any})
+    for step = 1:p["res"]
+	radial_diffusion_vanha(t,s,d,f,p);
+	axial_advection(t,s,d,f,p);
+	axial_diffusion(t,s,d,f,p);
+	phase_equilibration(t,s,d,p);
 	for i = 1:t.ny
 	    for j = 1:t.nr
 	        s.nair[i,j] += p["dt"]*(d.qair[i,j] +
