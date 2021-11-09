@@ -66,6 +66,69 @@ class Tree
     this.initialised = false;
   }
 
+    /**
+   *  called from main if radial increments file is supplied
+   *  needs more testing...
+   */
+  void initialise(in ref Parameters p){
+
+    for(auto i = 0; i < p.ny; i++){
+      for(auto j = 0; j < p.nr; j++){
+	if(p.radius_array_p){
+	  crossect[i,j] = crossect_area(j,p.dr_array[i]);
+	}else{
+	  crossect[i,j] = crossect_area(j,p.dr);
+	}
+      }
+    }
+
+    for(auto i = 0; i < p.ny; i++){
+      volume[i,0]    = p.dy * crossect[i,0];
+      volumeair[i,0] = p.fractair * volume[i,0];
+      volumewat[i,0] = p.fractwat * volume[i,0];
+      ker1[i,0]      = double.max;
+      if(p.radius_array_p){
+	ker2[i,0]    = p.dr_array[i];
+      }else{
+	ker2[i,0]    = p.dr;
+      }
+      for(auto j = 1; j < p.nr; j++){
+	volume[i,j]    = p.dy * crossect[i,j];
+	volumeair[i,j] = p.fractair * volume[i,j];
+	volumewat[i,j] = p.fractwat * volume[i,j];
+	if(p.radius_array_p){
+	  ker1[i,j] = ((p.dr_array[i] * to!double(j + 1)) -
+		       (p.dr_array[i] * to!double(j)));
+	  ker2[i,j] = ((p.dr_array[i] * to!double(j + 2)) -
+		       (p.dr_array[i] * to!double(j + 1)));
+	}else{
+	  ker1[i,j] = ((p.dr * to!double(j + 1)) -
+		       (p.dr * to!double(j)));
+	  ker2[i,j] = ((p.dr * to!double(j + 2)) -
+		       (p.dr * to!double(j + 1)));
+	}
+      }
+    }
+
+    zero_state(p);
+
+    /*
+    // todo: add debug printing
+    debug(1){
+      write("dr:");
+      for(auto i = 0; i < p.ny; i++){ write(" ",dr_values[i]); }
+      writeln("");
+    }
+    debug(1){
+      write("initialise_dr_fixed: crossects ");
+      for(auto j = 0; j < p.nr; j++){ write(" ",crossect[0,j]); }
+      writeln("");
+    }
+    */
+
+    this.initialised = true;
+  }
+  
   /**
    *  called from main if radial increments file is supplied
    *  needs more testing...
@@ -83,7 +146,8 @@ class Tree
       volumeair[i,0] = p.fractair * volume[i,0];
       volumewat[i,0] = p.fractwat * volume[i,0];
       ker1[i,0]      = double.max;
-      ker2[i,0]      = log(2.0 * dr_values[i] / dr_values[i]);
+      ker2[i,0]      = dr_values[i]; // new
+      //ker2[i,0]      = log(2.0 * dr_values[i] / dr_values[i]); // old
       for(auto j = 1; j < p.nr; j++){
 	volume[i,j]    = p.dy * crossect[i,j];
 	volumeair[i,j] = p.fractair * volume[i,j];
@@ -131,7 +195,8 @@ class Tree
       volumeair[i,0] = p.fractair * volume[i,0];
       volumewat[i,0] = p.fractwat * volume[i,0];
       ker1[i,0]      = double.max;
-      ker2[i,0]      = log(2.0 * p.dr / p.dr);
+      ker2[i,0]      = p.dr; // new
+      //ker2[i,0]      = log(2.0 * p.dr / p.dr); // old
       for(auto j = 1; j < p.nr; j++){
 	volume[i,j]    = p.dy * crossect[i,j];
 	volumeair[i,j] = p.fractair * volume[i,j];
@@ -345,7 +410,7 @@ class Tree
 	    state.cwat[i,j] = state.nwat[i,j]/volumewat[i,j];
 	  }
 	}
-	for(auto i = 0; i < p.ny; i++){
+ 	for(auto i = 0; i < p.ny; i++){
 	  for(auto j = 0; j < p.nr; j++){
 	    eqwat[i,j] = p.henry*s.cair[i,j];
 	    towater[i,j] = (eqwat[i,j] - s.cwat[i,j])*volumewat[i,j]*p.gamma;
@@ -365,6 +430,62 @@ class Tree
   }
 
   void radial_diffusion(ref Derivative dv, ref State st, in ref Parameters p){
+    if(p.radius_array_p){
+      for(auto i = 0; i < p.ny; i++){
+	for(auto j = 0; j < p.nr; j++){
+	  if(j == 0){
+	    // innermost radial element
+	    dv.qair[i,j] = (-2.0 * pii * p.dr_array[i] * (j+1) * p.dy * p.diff_r * 
+			    (st.cair[i,j] - st.cair[i,j+1]) / ker2[i,j]);
+	  }else if(j == (nr - 1)){
+	    // outermost radial element
+	    dv.qair[i,j] = ((2.0 * pii * p.dr_array[i] * j * p.dy * p.diff_r *
+			     (st.cair[i,j-1] - st.cair[i,j]) / ker1[i,j]) -
+			    (2.0 * pii * p.dr_array[i] * (j+1) * p.dy * p.diff_b *
+			     (st.cair[i,j] - p.camb) / ker2[i,j]));
+	  }else{
+	    dv.qair[i,j] = ((2.0 * pii * p.dr_array[i] * j * p.dy * p.diff_r *
+			     (st.cair[i,j-1] - st.cair[i,j]) / ker1[i,j]) -
+			    (2.0 * pii * p.dr_array[i] * (j+1) * p.dy * p.diff_r *
+			     (st.cair[i,j] - st.cair[i,j+1]) / ker2[i,j]));
+	  }
+	}
+      }
+      // set radial fluxdiff from side
+      for(auto i = 0; i < p.ny; i++){
+	st.fluxside[i] = (2.0 * pii * p.radius_array[i] * p.dy * p.diff_b *
+			  (st.cair[i,p.nr - 1] - p.camb) / ker2[i,p.nr - 1]);
+      }
+    }else{
+      for(auto i = 0; i < p.ny; i++){
+	for(auto j = 0; j < p.nr; j++){
+	  if(j == 0){
+	    // innermost radial element
+	    dv.qair[i,j] = (-2.0 * pii * p.dr * (j+1) * p.dy * p.diff_r * 
+			    (st.cair[i,j] - st.cair[i,j+1]) / ker2[i,j]);
+	  }else if(j == (nr - 1)){
+	    // outermost radial element
+	    dv.qair[i,j] = ((2.0 * pii * p.dr * j * p.dy * p.diff_r *
+			     (st.cair[i,j-1] - st.cair[i,j]) / ker1[i,j]) -
+			    (2.0 * pii * p.dr * (j+1) * p.dy * p.diff_b *
+			     (st.cair[i,j] - p.camb) / ker2[i,j]));
+	  }else{
+	    dv.qair[i,j] = ((2.0 * pii * p.dr * j * p.dy * p.diff_r *
+			     (st.cair[i,j-1] - st.cair[i,j]) / ker1[i,j]) -
+			    (2.0 * pii * p.dr * (j+1) * p.dy * p.diff_r *
+			     (st.cair[i,j] - st.cair[i,j+1]) / ker2[i,j]));
+	  }
+	}
+      }
+      // set radial fluxdiff from side
+      for(auto i = 0; i < p.ny; i++){
+	st.fluxside[i] = (2.0 * pii * p.radius * p.dy * p.diff_b *
+			  (st.cair[i,p.nr - 1] - p.camb) / ker2[i,p.nr - 1]);
+      }
+    }
+  }
+
+  void radial_diffusion_old(ref Derivative dv, ref State st, in ref Parameters p){
     for(auto i = 0; i < p.ny; i++){
       for(auto j = 0; j < p.nr; j++){
 	if(j == 0){
@@ -386,7 +507,7 @@ class Tree
       }
     }
   }
-
+  
   void axial_advection(ref Derivative dv, ref State st,
 		       in ref Parameters p, in double ax_vel){
     for(auto i = 0; i < p.ny; i++){

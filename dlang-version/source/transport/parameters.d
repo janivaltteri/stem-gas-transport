@@ -8,7 +8,9 @@ import std.conv;
 struct Parameters
 {
   bool initialised;
-  
+
+  bool radius_array_p;
+
   int nr;
   int ny;
   int nrs;
@@ -18,7 +20,7 @@ struct Parameters
   double dy;
   double dr;
   double dt;
-  
+
   double vel;
   double gamma;
   double tort;
@@ -36,6 +38,9 @@ struct Parameters
   double diff_r;
   double diff_a;
   double diff_b;
+
+  double[] dr_array;
+  double[] radius_array;
 
   void set_defaults(){
 
@@ -92,26 +97,33 @@ struct Parameters
 	writeln("no height"); ok = false;
       }
 
-      // radius
+      // radius ( single value or an array )
       if("radius" in j){
-	radius = j["radius"].floating;
-      }else{
-	writeln("no radius"); ok = false;
-      }
-
-      // dr
-      /*
-      if("dr" in j){
-	JSONValue dr_array = j["dr"].array; //get!(JSONValue[]); //j["dr"].floating;
-	dr.length = ny;
-	// todo: tarkista oikea määrä
-	for(auto i = 0; i < ny; i++){
-	  dr[i] = dr_array[i].get!float;
+	JSONValue radius_value_in = j["radius"];
+	if(radius_value_in.type == JSONType.array){
+	  auto values = j["radius"].get!(JSONValue[]);
+	  if(values.length == ny){
+	    radius_array.length = ny;
+	    for(auto i = 0; i < ny; i++){
+	      radius_array[i] = values[i].get!double;
+	    }
+	  }else{
+	    writeln("radius values length ",values.length,
+		    " not the same as ny ",ny);
+	    ok = false;
+	  }
+	  radius_array_p = true;
+	}else if(radius_value_in.type == JSONType.float_){
+	  radius = j["radius"].floating;
+	  radius_array_p = false;
+	}else{
+	  writeln("unrecognised JSONType in radius");
+	  ok = false;
 	}
       }else{
-	writeln("no dr"); ok = false;
+	writeln("no radius");
+	ok = false;
       }
-      */
 
       // fractions
       if("fractair" in j){
@@ -122,7 +134,7 @@ struct Parameters
       if("fractwat" in j){
 	fractwat = j["fractwat"].floating;
       }else{
-	writeln("no fractwat"); ok = false;
+	writeln("no fractwat");	ok = false;
       }
       if((fractair + fractwat) > 1.0){
 	writeln("fractions of air and water larger than 1.0"); ok = false;
@@ -161,21 +173,31 @@ struct Parameters
 
       if("diff_b" in j){
 	diff_b = j["diff_b"].floating;
-	//debug(2) writeln("diff_b set to ",diff_b);
       }else{
 	diff_b = diff_r;
-	//debug(2) writeln("diff_b not set, using diff_r");
+	debug(2) writeln("diff_b not set, using diff_r");
       }
 
       dy = height / to!double(ny);
-      dr = radius / to!double(nr);
+
+      if(radius_array_p){
+	for(auto i = 0; i < ny; i++){
+	  dr_array[i] = radius_array[i] / to!double(nr);
+	}
+      }else{
+	dr = radius / to!double(nr);
+      }
       
     }else{
       writeln("file ",file," not found");
       ok = false;
     }
 
-    if(!ok) writeln("error in reading parameters");
+    if(ok){
+      initialised = true;
+    }else{
+      writeln("error in reading parameters");
+    }
     
     return ok;
   }
@@ -183,7 +205,15 @@ struct Parameters
   void print(){
     writeln("parameters:");
     writefln("nr %s ny %s nrs %s", nr, ny, nrs);
-    writefln("dy %s dr %s", dy, dr);
+    if(radius_array_p){
+      write("dy ",dy," drs: ");
+      for(auto i = 0; i < ny; i++){
+	write(dr_array[i]," ");
+      }
+      writeln("");
+    }else{
+      writefln("dy %s dr %s", dy, dr);
+    }
     writefln("diff_r %s diff_a %s diff_b %s gamma %s",
 	     diff_r, diff_a, diff_b, gamma);
   }

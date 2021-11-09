@@ -16,14 +16,13 @@ import parameters;
 
 void main(string[] args)
 {
-  auto a = new Program("stem-gas-transport model, cli-interface", "0.3")
+  auto a = new Program("stem-gas-transport model, cli-interface", "0.4")
     .summary("Test code")
     .author("Jani Anttila <janivaltteri@posteo.net>")
     .add(new Option("i", "infile",    "parameter json infile").required)
     .add(new Option("o", "outfile",   "outfile prefix").defaultValue(""))
     .add(new Option("s", "steps",     "maximum number of steps").defaultValue("20"))
     .add(new Option("v", "velocities","input axial flows infile").defaultValue(""))
-    .add(new Option("w", "widths",    "radial width increments infile").defaultValue(""))
     .add(new Option("m", "method",    "numerical method")
 	 .defaultValue("euler").validate(new EnumValidator(["euler","rk4","original"])))
     .add(new Option("p", "printmode", "print either final state or all time-series")
@@ -47,7 +46,7 @@ void main(string[] args)
   try{
     nsteps = to!int(a.option("steps"));
   }catch (ConvException ce){
-    writeln("error parsing your suggested steps value, using default 20");
+    writeln("error parsing suggested steps value, using default 20");
     nsteps = 20;
   }
 
@@ -79,37 +78,6 @@ void main(string[] args)
     }else{
       writeln("velocity file ",velo_file," does not exist!");
       velo_read_ok = false;
-    }
-  }
-
-  // variable widths at different heights
-  bool width_input_p = false;
-  bool width_read_ok = true;
-  string width_file = a.option("widths");
-  double[] drvs;
-  if(width_file != ""){
-    width_input_p = true;
-    if(width_file.exists()){
-      drvs.length = par.ny;
-      int counter = 0;
-      auto wfile = File(width_file, "r");
-      foreach(record; wfile.byLine.joiner("\n").csvReader!(Tuple!(double))){
-	if(counter >= par.ny){
-	  writeln("error:",width_file," has more rows than the number of axial elements");
-	  width_read_ok = false;
-	  break;
-	}else{
-	  drvs[counter++] = (record[0]/2.0) / to!double(par.nr);
-	}
-      }
-      if(counter < par.ny){
-	writeln("error: ",width_file," has fewer rows than the number of axial elements");
-	width_read_ok = false;
-      }
-      wfile.close();
-    }else{
-      writeln("width file ",width_file," does not exist!");
-      width_read_ok = false;
     }
   }
 
@@ -203,21 +171,14 @@ void main(string[] args)
     writeln("parameter reading failed, stopping");
   }else if(!velo_read_ok){
     writeln("velocity file reading failed, stopping");
-  }else if(!width_read_ok){
-    writeln("width file reading failed, stopping");
   }else{
     Tree tree = new Tree(par);
 
-    if(width_input_p){
-      tree.initialise_dr_array(par,drvs);
-    }else{
-      tree.initialise_dr_fixed(par);
-    }
+    tree.initialise(par);
     
-    File of;
-    File sf;
-    File ff;
-    bool num_safe = true;
+    File of; // regular output file
+    File sf; // full storage output file
+    File ff; // flux output file
 
     debug(2) writeln("simulating");
 
@@ -235,6 +196,8 @@ void main(string[] args)
       ff.writeln("time,elem,type,value");
     }
 
+    bool num_safe = true;
+
     // the actual simulation
     for(auto step = 0; step < nsteps; step++){
 
@@ -245,10 +208,12 @@ void main(string[] args)
       }else{
 	velo = par.vel;
       }
+
       tree.euler_step(par, velo, method);
 
       // get new summary for comparison
       tree.fill_summary(summary);
+
       // check that these are positive and finite
       foreach(e; summary){
 	if((e == double.nan) | (e < 0.0)){

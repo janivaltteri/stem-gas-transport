@@ -3,7 +3,7 @@
 
 using JSON;
 
-## Flux struct - used for bookkeeping for output purposes
+## Flux struct stores the instantaneous flux value
 
 mutable struct Flux
     fluxin::Array{Float64,1}
@@ -35,7 +35,7 @@ Base.show(io::IO, f::Flux) = print(io, "in    ",(flux_totals(f))[1],
                                    " \ntop_d ",(flux_totals(f))[3],
                                    " \ntop_a ",(flux_totals(f))[4])
 
-## state struct - holds the state variables of the tree
+## state struct holds the mutable state of gas amounts and concentrations
 
 mutable struct State
     cair::Array{Float64,2} ## conc. in gaseous phase
@@ -70,7 +70,7 @@ Base.show(io::IO, s::State) = print(io, "time ",s.time,
                                     " ny ", s.ny, " nr ", s.nr,
                                     " total ", total_storage(s))
 
-## derivative state - holds the state change
+## derivative struct contains the state change
 
 mutable struct Derivative
     qair::Array{Float64,2}    ## radial diffusion
@@ -87,6 +87,8 @@ function make_derivative(in_ny::Integer,in_nr::Integer)::Derivative
     d = Derivative(qa,qd,axd,tow)
 end
 
+## cumulant struct aggregates flux values along a simulation
+
 mutable struct Cumulant
     fluxin::Float64
     fluxside::Float64
@@ -98,6 +100,8 @@ Base.show(io::IO, c::Cumulant) = print(io, "in    ",c.fluxin,
                                        " \nside  ",c.fluxside,
                                        " \ntop_d ",c.fluxtop_d,
                                        " \ntop_a ",c.fluxtop_a)
+
+## tree struct holds volumes, areas, etc. specific for a setup
 
 mutable struct Tree
     volume::Array{Float64,2}
@@ -156,7 +160,7 @@ function initialise_tree_fix_dr(t::Tree,p::Dict{String,Any})
     return nothing;
 end
 
-function initialise_tree_fix_dr_vanha(t::Tree,p::Dict{String,Any})
+function initialise_tree_fix_dr_old(t::Tree,p::Dict{String,Any})
     for i = 1:t.ny
         for j = 1:t.nr
             t.crossect[i,j] = crossect_area(j,p["dr"])
@@ -211,7 +215,7 @@ function radial_diffusion(t::Tree,s::State,d::Derivative,f::Flux,
     return nothing;
 end
 
-function radial_diffusion_vanha(t::Tree,s::State,d::Derivative,f::Flux,p::Dict{String,Any})
+function radial_diffusion_old(t::Tree,s::State,d::Derivative,f::Flux,p::Dict{String,Any})
     ## set derivative elements
     for i = 1:t.ny
         for j = 1:t.nr
@@ -366,10 +370,10 @@ function euler_step(t::Tree,s::State,d::Derivative,f::Flux,
 end
 
 ## todo : check that tree is initialised
-function euler_step_vanha(t::Tree,s::State,d::Derivative,f::Flux,
+function euler_step_old(t::Tree,s::State,d::Derivative,f::Flux,
                     c::Cumulant,p::Dict{String,Any})
     for step = 1:p["res"]
-	radial_diffusion_vanha(t,s,d,f,p);
+	radial_diffusion_old(t,s,d,f,p);
 	axial_advection(t,s,d,f,p);
 	axial_diffusion(t,s,d,f,p);
 	phase_equilibration(t,s,d,p);
