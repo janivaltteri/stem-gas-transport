@@ -243,7 +243,7 @@ class Tree
   }
 
   /**
-   *  called for setting cross section areas in the constructor
+   *  called for setting cross section areas in initialise()
    */
   pure double crossect_area(in int idx, in double dr){
     if(idx == 0){

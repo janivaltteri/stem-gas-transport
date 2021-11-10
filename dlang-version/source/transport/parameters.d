@@ -204,7 +204,7 @@ struct Parameters
 
   void print(){
     writeln("parameters:");
-    writefln("nr %s ny %s nrs %s", nr, ny, nrs);
+    writefln("ny %s nr %s nrs %s", ny, nr, nrs);
     if(radius_array_p){
       write("dy ",dy," drs: ");
       for(auto i = 0; i < ny; i++){

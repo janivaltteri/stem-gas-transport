@@ -17,7 +17,7 @@ import parameters;
 void main(string[] args)
 {
   auto a = new Program("stem-gas-transport model, cli-interface", "0.4")
-    .summary("Test code")
+    .summary("Code for manuscript")
     .author("Jani Anttila <janivaltteri@posteo.net>")
     .add(new Option("i", "infile",    "parameter json infile").required)
     .add(new Option("o", "outfile",   "outfile prefix").defaultValue(""))
@@ -152,7 +152,7 @@ void main(string[] args)
 
   // equilibrium search
   bool equilibrium = false;
-  double[4] prev_summary = [ 0.0, 0.0, 0.0, 0.0 ];
+  // double[4] prev_summary = [ 0.0, 0.0, 0.0, 0.0 ]; // can't remember why I had this here
   double[4] summary = [ 0.0, 0.0, 0.0, 0.0 ];
   double tolerance;
   try{
@@ -211,7 +211,7 @@ void main(string[] args)
 
       tree.euler_step(par, velo, method);
 
-      // get new summary for comparison
+      // summary values are 0: flux in 1: flux side 2: flux top d 3: flux top a
       tree.fill_summary(summary);
 
       // check that these are positive and finite
@@ -235,15 +235,16 @@ void main(string[] args)
 
       if(num_safe){
 
-	// test for equilibrium
-	equilibrium = true;
-	double flux_sum = summary[1] + summary[2] + summary[3];
-	if((1.0 - (flux_sum / summary[0])) > tolerance){
-	  equilibrium = false;
-	}
-	if(equilibrium_search && equilibrium){
-	  writeln("equilibrium reached at time ",tree.time);
-	  break;
+	if(equilibrium_search > 0){
+	  // test for equilibrium
+	  double flux_out_sum = summary[1] + summary[2] + summary[3];
+	  if((1.0 - (flux_out_sum / summary[0])) > tolerance){
+	    equilibrium = false;
+	  }else{
+	    equilibrium = true;
+	    writeln("equilibrium reached at time ",tree.time);
+	    break;
+	  }
 	}
 
       }else{
@@ -251,6 +252,12 @@ void main(string[] args)
 	writeln("oops! numerical instability, stopping at step ",step);
 	break;
 
+      }
+    }
+
+    if(equilibrium_search > 0){
+      if(!equilibrium){
+	writeln("equilibrium not reached");
       }
     }
 
@@ -277,7 +284,7 @@ void main(string[] args)
 
   }
 
-  debug(1) writeln("valmis!");
+  debug(1) writeln("done!");
 }
 
 /**
